@@ -221,6 +221,7 @@ type Endpoint struct {
 		mutex   sync.Mutex
 		seq     uint64
 		pending map[uint64]*rpcCall
+		notify  chan *Message
 	}
 
 	server struct {
@@ -334,6 +335,28 @@ func (e *Endpoint) serveResponse(msg *Message) error {
 	return nil
 }
 
+func (e *Endpoint) serveNotify(msg *Message) error {
+
+	e.client.notify <- msg
+
+	return nil
+}
+
+func (e *Endpoint) ReadNotify(msgChan chan string) {
+
+	for	{
+		select {
+		case msg := <- e.client.notify:
+			{
+				byt, _ := json.Marshal(msg)
+				msgChan <- string(byt)
+			}
+
+		}
+	}
+
+}
+
 // Serve messages from this connection. Serve blocks, serving the
 // connection until the client disconnects, or there is an error.
 func (e *Endpoint) Serve() error {
@@ -354,10 +377,12 @@ func (e *Endpoint) Serve() error {
 		msg.Error = anyMsg.Error
 
 		switch {
-		case msg.Func != "":
+		case msg.Func != "" && msg.ID != nil:
 			err = e.serveRequest(&msg)
-		case msg.ID != nil:
+		case msg.Func == "" && msg.ID != nil:
 			err = e.serveResponse(&msg)
+		case msg.Func != "" && msg.ID == nil:
+			err = e.serveNotify(&msg)
 		default:
 			// ignore responses from notifications
 		}

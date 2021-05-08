@@ -2,12 +2,11 @@ package main
 
 import (
 	"flag"
+	"github.com/gorilla/websocket"
+	"jsonrpc"
+	"jsonrpc/demo/data"
 	"log"
 	"net/http"
-
-	"github.com/gorilla/websocket"
-	"github.com/sudhakar/jsonrpc"
-	"github.com/sudhakar/jsonrpc/examples/go/data"
 )
 
 var serveAddr = flag.String("addr", "0.0.0.0:8080", "http service address")
