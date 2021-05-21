@@ -221,7 +221,7 @@ type Endpoint struct {
 		mutex   sync.Mutex
 		seq     uint64
 		pending map[uint64]*rpcCall
-		notify  chan *Message
+		notify  chan string
 	}
 
 	server struct {
@@ -245,6 +245,7 @@ func NewEndpoint(conn *websocket.Conn, registry *Registry) *Endpoint {
 	e.conn = conn
 	e.server.registry = registry
 	e.client.pending = make(map[uint64]*rpcCall)
+	e.client.notify = make(chan string, 1000)
 	return e
 }
 
@@ -256,6 +257,7 @@ func NewClient(urlStr string, header http.Header) (*Endpoint, error) {
 	e := &Endpoint{}
 	e.conn = conn
 	e.client.pending = make(map[uint64]*rpcCall)
+	e.client.notify = make(chan string, 1000)
 	go e.Serve()
 	return e, nil
 }
@@ -314,7 +316,14 @@ func (e *Endpoint) serveResponse(msg *Message) error {
 				log.Printf("Received msgID=%d with neither 'result' or 'error'. "+
 					"Likely service method is for 'notify' but is called as 'request'\n", *msg.ID)
 			} else {
-				err := json.Unmarshal(raw, call.Reply)
+				var err error
+				bRaw, _ := json.Marshal(raw)
+				if (string(bRaw))[0]== '[' {
+					bMsg, _ := json.Marshal(msg)
+					err = json.Unmarshal(bMsg, call.Reply)
+				}else {
+					err = json.Unmarshal(raw, call.Reply)
+				}
 				if err != nil {
 					rpcErr := parseError
 					rpcErr.Data = append([]byte(rpcErr.Data)[:], []byte(err.Error())...)
@@ -337,7 +346,11 @@ func (e *Endpoint) serveResponse(msg *Message) error {
 
 func (e *Endpoint) serveNotify(msg *Message) error {
 
-	e.client.notify <- msg
+	bMsg, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	e.client.notify <- string(bMsg)
 
 	return nil
 }
@@ -348,8 +361,7 @@ func (e *Endpoint) ReadNotify(msgChan chan string) {
 		select {
 		case msg := <- e.client.notify:
 			{
-				byt, _ := json.Marshal(msg)
-				msgChan <- string(byt)
+				msgChan <- msg
 			}
 
 		}
