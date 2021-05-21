@@ -154,6 +154,7 @@ func getRPCMethodsOfType(object interface{}) ([]*function, error) {
 			}
 		}
 
+		
 		fn := &function{
 			receiver: reflect.ValueOf(object),
 			method:   method,
